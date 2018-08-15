@@ -1,55 +1,181 @@
 
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <iostream> 
 #include <math.h>
-  
+#include <string>
+#include <tiffio.h>
+
+using namespace cv;
 using namespace std;
 
-double ssim(double avgX, double avgY, double varX, double varY, double covar, double k1, double k2, double c1, double c2) {
-  return ((2 * varX + c1) * (2 * covar + c2)) / ((pow(avgX, 2) + pow(avgY, 2) + c1) * (pow(varX, 2) + pow(varY, 2) + c2));
+#define C1 (float) (0.01 * 255 * 0.01  * 255)
+#define C2 (float) (0.03 * 255 * 0.03 * 255)
+
+
+
+bool tifToMat(Mat& image,string imageName){
+
+		  // Read images and create the Mat
+		  TIFF* tif = TIFFOpen(imageName.c_str(), "r");
+		  
+		  if (tif) {
+		     do {
+			unsigned int width, height;
+			uint32* raster;
+
+			// get the size of the tiff
+			TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+			TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+
+			uint npixels = width*height; // get the total number of pixels
+
+			raster = (uint32*)_TIFFmalloc(npixels * sizeof(uint32)); // allocate temp memory (must use the tiff library malloc)
+			if (raster == NULL) // check the raster's memory was allocaed
+			{
+			   TIFFClose(tif);
+			   cerr << "Could not allocate memory for raster of TIFF image" << endl;
+			   return false;
+			}
+					
+			// Check the tif read to the raster correctly
+			if (!TIFFReadRGBAImage(tif, width, height, raster, 0))
+			{
+			   TIFFClose(tif);
+			   cerr << "Could not read raster of TIFF image" << endl;
+			   return false;
+			}
+
+			image = Mat(width, height, CV_8UC4); // create a new matrix of w x h with 8 bits per channel and 4 channels (RGBA)
+					
+			// itterate through all the pixels of the tif
+			for (uint x = 0; x < width; x++)
+			  for (uint y = 0; y < height; y++)
+			  {
+			    uint32& TiffPixel = raster[y*width+x]; // read the current pixel of the TIF
+			    Vec4b& pixel = image.at<Vec4b>(Point(y, x)); // read the current pixel of the matrix
+			    pixel[0] = TIFFGetB(TiffPixel); // Set the pixel values as BGRA
+			    pixel[1] = TIFFGetG(TiffPixel);
+			    pixel[2] = TIFFGetR(TiffPixel);
+			    pixel[3] = TIFFGetA(TiffPixel);
+			  }
+
+			 _TIFFfree(raster); // release temp memory
+			// Rotate the image 90 degrees couter clockwise
+			 image = image.t();
+			 flip(image, image, 0);
+			
+		    } while (TIFFReadDirectory(tif)); // get the next tif
+
+		   TIFFClose(tif); // close the tif file
+		  }
+  return true;
+}
+double sigma(Mat & m, int i, int j, int block_size)
+	{
+		double sd = 0;
+		
+		Mat m_tmp = m(Range(i, i + block_size), Range(j, j + block_size));
+		Mat m_squared(block_size, block_size, CV_64F);
+
+		multiply(m_tmp, m_tmp, m_squared);
+
+		// E(x)
+		double avg = mean(m_tmp)[0];
+		// E(x²)
+		double avg_2 = mean(m_squared)[0];
+
+	
+		sd = sqrt(avg_2 - avg * avg);
+		return sd;
+}
+// Covariance
+	double cov(Mat & m1, Mat & m2, int i, int j, int block_size)
+	{
+		Mat m3 = Mat::zeros(block_size, block_size, m1.depth());
+		Mat m1_tmp = m1(Range(i, i + block_size), Range(j, j + block_size));
+		Mat m2_tmp = m2(Range(i, i + block_size), Range(j, j + block_size));
+
+
+		multiply(m1_tmp, m2_tmp, m3);
+
+		double avg_ro 	= mean(m3)[0]; // E(XY)
+		double avg_r 	= mean(m1_tmp)[0]; // E(X)
+		double avg_o 	= mean(m2_tmp)[0]; // E(Y)
+
+
+		double sd_ro = avg_ro - avg_o * avg_r; // E(XY) - E(X)E(Y)
+
+		return sd_ro;
+	}
+
+
+double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_progress = true)
+{
+ double ssim = 0;
+ cout<<"SSIM: "<<ssim<<endl;
+
+ int nbBlockPerHeight = img_src.rows / block_size;
+  cout<<"blockperheight: "<<nbBlockPerHeight<<endl;
+
+ int nbBlockPerWidth = img_src.cols / block_size;
+ cout<<"blockperwidth: "<<nbBlockPerWidth<<endl;
+
+	for (int k = 0; k < nbBlockPerHeight; k++)
+	{
+		for (int l = 0; l < nbBlockPerWidth; l++)
+		{
+			int m = k * block_size;
+			int n = l * block_size;
+
+			double avg_o 	= mean(img_src(Range(k, k + block_size), Range(l, l + block_size)))[0];
+			double avg_r 	= mean(img_compressed(Range(k, k + block_size), Range(l, l + block_size)))[0];
+			double sigma_o 	= sigma(img_src, m, n, block_size);
+			double sigma_r 	= sigma(img_compressed, m, n, block_size);
+			double sigma_ro	= cov(img_src, img_compressed, m, n, block_size);
+			/*cout<<"avg_o "<<avg_o<<endl;
+			cout<<"avg_r "<<avg_r<<endl;
+			cout<<"sigma_o "<<sigma_o<<endl;
+ 			cout<<"sigma_r "<<sigma_r<<endl;
+			cout<<"sigma_ro "<<sigma_ro<<endl;*/
+			
+			ssim += ((2 * avg_o * avg_r + C1) * (2 * sigma_ro + C2)) / ((avg_o * avg_o + avg_r * avg_r + C1) * (sigma_o * sigma_o + sigma_r * sigma_r + C2));
+			
+		}
+		// Progress
+		if (show_progress)
+			cout << "\r>>SSIM [" << (int) ((( (double)k) / nbBlockPerHeight) * 100) << "%]";
+	}
+        ssim /= nbBlockPerHeight * nbBlockPerWidth;
+
+	if (show_progress)
+	{
+		cout << "\r>>SSIM [100%]" << endl;
+		cout << "SSIM : " << ssim << endl;
+	}
+ return ssim;
 }
 
-int main() {
-  double k1 = 0.01;
-  double k2 = 0.03;
- 
-    // x = 0.331,0.1412,0.4123,0.4444,0.8192,0.3123,0.3419,0.9950,0.9100,0.0133,0.5799
-    // y = 0.312,0.3412,0.4441,0.5759,0.9919,0.1329,0.3412,0.9410,0.9101,0.0139,0.1302
+int main(){
+  Mat originalImage;
+  Mat compressedImage;
+  string originalImagePath("images/0.tif");
+  string compressedImagePath("images/1.tif");
+  bool done = tifToMat(originalImage,originalImagePath);
+  if(!done) return -1;
+  done = tifToMat(compressedImage,compressedImagePath);
+  if(!done) return -1;
 
-  double args[6] = {
-    0.48186363636364,
-    0.46676363636364,
-    0.089360393223141,
-    0.10863177867769,
-    0.08430,
-    8
-  };
+  originalImage.convertTo(originalImage, CV_64F);
+  compressedImage.convertTo(compressedImage, CV_64F);
 
-  double avgX = args[0];
-  double avgY = args[1];
-  double varX = args[2];
-  double varY = args[3];
-  double covar = args[4];
+  //imshow("Original image", originalImage); // show the image
+  //imshow("Compressed image", compresedImage); // show the image
+  //waitKey(0); // wait for anykey before displaying next
 
-  double bpp = args[5];
-  double dynamicRange = pow(2, bpp) - 1;
-  double c1 = pow(k1 * dynamicRange, 2);
-  double c2 = pow(k2 * dynamicRange, 2);
-  double index = ssim(avgX, avgY, varX, varY, covar, k1, k2, c1, c2);
-
-  if (index == 1)
-    cout << "The two images are equal" << endl;
-  else if (index < 1 && index > 0.7)
-    cout << "The two images are very similar" << endl;
-  else if (index <= 0.7 && index > 0.3)
-    cout << "The two images are similar" << endl;
-  else if (index <= 0.3 && index >= 0)
-    cout << "The two images aren't so similar" << endl;
-  else if (index < 0 && index > 0.5)
-    cout << "The two images are different" << endl;
-  else if (index <= 0.5)
-    cout << "The two images are very different" << endl;
-
-  cout << "The SSIM index is: " << index << endl;
-
+  double SSIM = getSSIM(originalImage, compressedImage,1);
   return 0;
+
 }
