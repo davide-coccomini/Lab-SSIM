@@ -33,7 +33,7 @@ bool tifToMat(Mat& image,string imageName){
 			uint npixels = width*height; // get the total number of pixels
 
 			raster = (uint32*)_TIFFmalloc(npixels * sizeof(uint32)); // allocate temp memory (must use the tiff library malloc)
-			if (raster == NULL) // check the raster's memory was allocaed
+			if (raster == NULL) // check the raster's memory was allocated
 			{
 			   TIFFClose(tif);
 			   cerr << "Could not allocate memory for raster of TIFF image" << endl;
@@ -92,24 +92,22 @@ double sigma(Mat & m, int i, int j, int block_size)
 		return sd;
 }
 // Covariance
-	double cov(Mat & m1, Mat & m2, int i, int j, int block_size)
-	{
-		Mat m3 = Mat::zeros(block_size, block_size, m1.depth());
-		Mat m1_tmp = m1(Range(i, i + block_size), Range(j, j + block_size));
-		Mat m2_tmp = m2(Range(i, i + block_size), Range(j, j + block_size));
+double cov(Mat & m1, Mat & m2, int i, int j, int block_size)
+{
+	Mat m3 = Mat::zeros(block_size, block_size, m1.depth());
+	Mat m1_tmp = m1(Range(i, i + block_size), Range(j, j + block_size));
+	Mat m2_tmp = m2(Range(i, i + block_size), Range(j, j + block_size));
 
+	multiply(m1_tmp, m2_tmp, m3);
+	
+	double avg_ro = mean(m3)[0]; // E(XY)
+	double avg_r = mean(m1_tmp)[0]; // E(X)
+	double avg_o = mean(m2_tmp)[0]; // E(Y)
 
-		multiply(m1_tmp, m2_tmp, m3);
+	double sd_ro = avg_ro - avg_o * avg_r; // E(XY) - E(X)E(Y)
 
-		double avg_ro 	= mean(m3)[0]; // E(XY)
-		double avg_r 	= mean(m1_tmp)[0]; // E(X)
-		double avg_o 	= mean(m2_tmp)[0]; // E(Y)
-
-
-		double sd_ro = avg_ro - avg_o * avg_r; // E(XY) - E(X)E(Y)
-
-		return sd_ro;
-	}
+	return sd_ro;
+}
 
 
 double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_progress = true)
@@ -118,10 +116,7 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
  cout<<"SSIM: "<<ssim<<endl;
 
  int nbBlockPerHeight = img_src.rows / block_size;
-  cout<<"blockperheight: "<<nbBlockPerHeight<<endl;
-
  int nbBlockPerWidth = img_src.cols / block_size;
- cout<<"blockperwidth: "<<nbBlockPerWidth<<endl;
 
 	for (int k = 0; k < nbBlockPerHeight; k++)
 	{
@@ -135,12 +130,7 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 			double sigma_o 	= sigma(img_src, m, n, block_size);
 			double sigma_r 	= sigma(img_compressed, m, n, block_size);
 			double sigma_ro	= cov(img_src, img_compressed, m, n, block_size);
-			/*cout<<"avg_o "<<avg_o<<endl;
-			cout<<"avg_r "<<avg_r<<endl;
-			cout<<"sigma_o "<<sigma_o<<endl;
- 			cout<<"sigma_r "<<sigma_r<<endl;
-			cout<<"sigma_ro "<<sigma_ro<<endl;*/
-			
+	
 			ssim += ((2 * avg_o * avg_r + C1) * (2 * sigma_ro + C2)) / ((avg_o * avg_o + avg_r * avg_r + C1) * (sigma_o * sigma_o + sigma_r * sigma_r + C2));
 			
 		}
@@ -177,5 +167,4 @@ int main(){
 
   double SSIM = getSSIM(originalImage, compressedImage,1);
   return 0;
-
 }
