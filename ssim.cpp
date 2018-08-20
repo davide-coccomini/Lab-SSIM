@@ -66,7 +66,7 @@ bool tifToMat(Mat& image,string imageName){
 				_TIFFfree(raster); 
 
 				// Rotate the image 90 degrees 
-				image = image.t();
+				image = image.t(); // Traspose
 				flip(image, image, 0);
 			
 		    } while (TIFFReadDirectory(tif)); // Get the next tif to go into the channels
@@ -77,7 +77,7 @@ bool tifToMat(Mat& image,string imageName){
 }
 
 // Variance
-double sigma(Mat & m, int i, int j, int block_size)
+double variance(Mat & m, int i, int j, int block_size)
 {
 		double sd = 0;
 		
@@ -94,7 +94,7 @@ double sigma(Mat & m, int i, int j, int block_size)
 }
 
 // Covariance
-double cov(Mat & m1, Mat & m2, int i, int j, int block_size)
+double covariance(Mat & m1, Mat & m2, int i, int j, int block_size)
 {
 	Mat m3 = Mat::zeros(block_size, block_size, m1.depth()); // Create 0 filled matrix 
 	Mat m1_tmp = m1(Range(i, i + block_size), Range(j, j + block_size)); // Create temporary matrix (Range is used to generate the rows)
@@ -132,9 +132,9 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 
 			double avg_o 	= mean(img_src(Range(k, k + block_size), Range(l, l + block_size)))[0];
 			double avg_c 	= mean(img_compressed(Range(k, k + block_size), Range(l, l + block_size)))[0];
-			double sigma_o 	= sigma(img_src, m, n, block_size);
-			double sigma_c 	= sigma(img_compressed, m, n, block_size);
-			double sigma_co	= cov(img_src, img_compressed, m, n, block_size);
+			double sigma_o 	= variance(img_src, m, n, block_size);
+			double sigma_c 	= variance(img_compressed, m, n, block_size);
+			double sigma_co	= covariance(img_src, img_compressed, m, n, block_size);
 
 			// SSIM: [(2*  μx   *  μy   + C1) * (2 * σxy      + C2)]/[(((μx)^2)        + ((μy)^2)      + C1) * (     ((σx)^2)     +     ((σy)^2)      + C2)]
 			ssim += ((2 * avg_o * avg_c + C1) * (2 * sigma_co + C2)) / ((avg_o * avg_o + avg_c * avg_c + C1) * (sigma_o * sigma_o + sigma_c * sigma_c + C2));
