@@ -1,4 +1,3 @@
-
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -11,96 +10,99 @@
 using namespace cv;
 using namespace std;
 
+// Two variables to stabilize the division with weak denominator
 #define C1 (float) (0.01 * 255 * 0.01  * 255)
 #define C2 (float) (0.03 * 255 * 0.03 * 255)
 
 
 
 bool tifToMat(Mat& image,string imageName){
-
 		  // Read images and create the Mat
 		  TIFF* tif = TIFFOpen(imageName.c_str(), "r");
 		  
 		  if (tif) {
 		     do {
-			unsigned int width, height;
-			uint32* raster;
+				unsigned int width, height;
+				uint32* raster;
 
-			// get the size of the tiff
-			TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
-			TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+				// Get the size of the tiff
+				TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+				TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
 
-			uint npixels = width*height; // get the total number of pixels
+				uint npixels = width*height; // Get the total number of pixels
 
-			raster = (uint32*)_TIFFmalloc(npixels * sizeof(uint32)); // allocate temp memory (must use the tiff library malloc)
-			if (raster == NULL) // check the raster's memory was allocated
-			{
-			   TIFFClose(tif);
-			   cerr << "Could not allocate memory for raster of TIFF image" << endl;
-			   return false;
-			}
-					
-			// Check the tif read to the raster correctly
-			if (!TIFFReadRGBAImage(tif, width, height, raster, 0))
-			{
-			   TIFFClose(tif);
-			   cerr << "Could not read raster of TIFF image" << endl;
-			   return false;
-			}
+				raster = (uint32*)_TIFFmalloc(npixels * sizeof(uint32)); // Allocate temp memory (bitmap)
+				if (raster == NULL) // Check the raster's memory was allocated
+				{
+					TIFFClose(tif);
+					cerr << "Raster allocate error" << endl;
+					return false;
+				}
+						
+				// Check the tif read to the raster correctly
+				if (!TIFFReadRGBAImage(tif, width, height, raster, 0))
+				{
+					TIFFClose(tif);
+					cerr << "Raster read error" << endl;
+					return false;
+				}
 
-			image = Mat(width, height, CV_8UC4); // create a new matrix of w x h with 8 bits per channel and 4 channels (RGBA)
-					
-			// itterate through all the pixels of the tif
-			for (uint x = 0; x < width; x++)
-			  for (uint y = 0; y < height; y++)
-			  {
-			    uint32& TiffPixel = raster[y*width+x]; // read the current pixel of the TIF
-			    Vec4b& pixel = image.at<Vec4b>(Point(y, x)); // read the current pixel of the matrix
-			    pixel[0] = TIFFGetB(TiffPixel); // Set the pixel values as BGRA
-			    pixel[1] = TIFFGetG(TiffPixel);
-			    pixel[2] = TIFFGetR(TiffPixel);
-			    pixel[3] = TIFFGetA(TiffPixel);
-			  }
+				// Create a new matrix of width x height with 8 bits per channel and 4 channels (RGBA)
+				image = Mat(width, height, CV_8UC4); 
+						
+				// Itterate through all the pixels of the tif
+				for (uint x = 0; x < width; x++)
+					for (uint y = 0; y < height; y++)
+					{
+						uint32& TiffPixel = raster[y*width+x]; // Read the current pixel of the TIF
+						Vec4b& pixel = image.at<Vec4b>(Point(y, x)); // Read the current pixel of the matrix
+						pixel[0] = TIFFGetB(TiffPixel); // Set the pixel values as BGRA
+						pixel[1] = TIFFGetG(TiffPixel);
+						pixel[2] = TIFFGetR(TiffPixel);
+						pixel[3] = TIFFGetA(TiffPixel);
+					}
+				
+				// Free temp memory
+				_TIFFfree(raster); 
 
-			 _TIFFfree(raster); // release temp memory
-			// Rotate the image 90 degrees couter clockwise
-			 image = image.t();
-			 flip(image, image, 0);
+				// Rotate the image 90 degrees 
+				image = image.t();
+				flip(image, image, 0);
 			
-		    } while (TIFFReadDirectory(tif)); // get the next tif
+		    } while (TIFFReadDirectory(tif)); // Get the next tif to go into the channels
 
-		   TIFFClose(tif); // close the tif file
-		  }
+		   TIFFClose(tif); // Close the tif file
+		  }else return false;
   return true;
 }
+
+// Variance
 double sigma(Mat & m, int i, int j, int block_size)
-	{
+{
 		double sd = 0;
 		
-		Mat m_tmp = m(Range(i, i + block_size), Range(j, j + block_size));
-		Mat m_squared(block_size, block_size, CV_64F);
+		Mat m_tmp = m(Range(i, i + block_size), Range(j, j + block_size)); // Create temporary matrix (Range is used to generate the rows)
+		Mat m_squared(block_size, block_size, CV_64F); // Create the matrix to scan
 
-		multiply(m_tmp, m_tmp, m_squared);
+		multiply(m_tmp, m_tmp, m_squared); 
 
-		// E(x)
-		double avg = mean(m_tmp)[0];
-		// E(x²)
-		double avg_2 = mean(m_squared)[0];
+		double avg = mean(m_tmp)[0]; 	// E(x) (mean calculate medium point)
+		double avg_2 = mean(m_squared)[0]; 	// E(x²) 
 
-	
 		sd = sqrt(avg_2 - avg * avg);
 		return sd;
 }
+
 // Covariance
 double cov(Mat & m1, Mat & m2, int i, int j, int block_size)
 {
-	Mat m3 = Mat::zeros(block_size, block_size, m1.depth());
-	Mat m1_tmp = m1(Range(i, i + block_size), Range(j, j + block_size));
+	Mat m3 = Mat::zeros(block_size, block_size, m1.depth()); // Create 0 filled matrix 
+	Mat m1_tmp = m1(Range(i, i + block_size), Range(j, j + block_size)); // Create temporary matrix (Range is used to generate the rows)
 	Mat m2_tmp = m2(Range(i, i + block_size), Range(j, j + block_size));
 
 	multiply(m1_tmp, m2_tmp, m3);
 	
-	double avg_ro = mean(m3)[0]; // E(XY)
+	double avg_ro = mean(m3)[0]; // E(XY) medium point
 	double avg_r = mean(m1_tmp)[0]; // E(X)
 	double avg_o = mean(m2_tmp)[0]; // E(Y)
 
@@ -113,11 +115,10 @@ double cov(Mat & m1, Mat & m2, int i, int j, int block_size)
 double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_progress = true)
 {
  double ssim = 0;
- cout<<"SSIM: "<<ssim<<endl;
 
  int nbBlockPerHeight = img_src.rows / block_size;
  int nbBlockPerWidth = img_src.cols / block_size;
-
+	// Foreach block in the images
 	for (int k = 0; k < nbBlockPerHeight; k++)
 	{
 		for (int l = 0; l < nbBlockPerWidth; l++)
@@ -130,11 +131,12 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 			double sigma_o 	= sigma(img_src, m, n, block_size);
 			double sigma_r 	= sigma(img_compressed, m, n, block_size);
 			double sigma_ro	= cov(img_src, img_compressed, m, n, block_size);
-	
+
+			// SSIM: [(2*  μx   *  μy   + C1) * (2 * σxy      + C2)]/[(((μx)^2)        + ((μy)^2)      + C1) * (     ((σx)^2)     +     ((σy)^2)      + C2)]
 			ssim += ((2 * avg_o * avg_r + C1) * (2 * sigma_ro + C2)) / ((avg_o * avg_o + avg_r * avg_r + C1) * (sigma_o * sigma_o + sigma_r * sigma_r + C2));
 			
 		}
-		// Progress
+		// Progress %
 		if (show_progress)
 			cout << "\r>>SSIM [" << (int) ((( (double)k) / nbBlockPerHeight) * 100) << "%]";
 	}
@@ -154,16 +156,23 @@ int main(){
   string originalImagePath("images/0.tif");
   string compressedImagePath("images/1.tif");
   bool done = tifToMat(originalImage,originalImagePath);
-  if(!done) return -1;
+  if(!done){
+	cout << "Error converting original image tiff to matrix";
+	return -1;
+  }
+
   done = tifToMat(compressedImage,compressedImagePath);
-  if(!done) return -1;
+  if(!done){
+	cout << "Error converting compressed image tiff to matrix";
+	return -1;
+  }
 
   originalImage.convertTo(originalImage, CV_64F);
   compressedImage.convertTo(compressedImage, CV_64F);
 
-  //imshow("Original image", originalImage); // show the image
-  //imshow("Compressed image", compresedImage); // show the image
-  //waitKey(0); // wait for anykey before displaying next
+  //imshow("Original image", originalImage); // Show the original image
+  //imshow("Compressed image", compresedImage); // Show the compressed image
+  //waitKey(0); // Wait for key before displaying next
 
   double SSIM = getSSIM(originalImage, compressedImage,1);
   return 0;
