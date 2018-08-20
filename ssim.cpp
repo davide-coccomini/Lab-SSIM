@@ -102,13 +102,13 @@ double cov(Mat & m1, Mat & m2, int i, int j, int block_size)
 
 	multiply(m1_tmp, m2_tmp, m3);
 	
-	double avg_ro = mean(m3)[0]; // E(XY) medium point
-	double avg_r = mean(m1_tmp)[0]; // E(X)
+	double avg_co = mean(m3)[0]; // E(XY) medium point
+	double avg_c = mean(m1_tmp)[0]; // E(X)
 	double avg_o = mean(m2_tmp)[0]; // E(Y)
 
-	double sd_ro = avg_ro - avg_o * avg_r; // E(XY) - E(X)E(Y)
+	double sd_co = avg_co - avg_o * avg_c; // E(XY) - E(X)E(Y)
 
-	return sd_ro;
+	return sd_co;
 }
 
 
@@ -116,6 +116,10 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 {
  double ssim = 0;
 
+ if(img_src.cols != img_compressed.cols || img_src.rows != img_compressed.rows){
+   cout<<"The images got different size"<<endl;
+   return -1;
+ }
  int nbBlockPerHeight = img_src.rows / block_size;
  int nbBlockPerWidth = img_src.cols / block_size;
 	// Foreach block in the images
@@ -127,13 +131,13 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 			int n = l * block_size;
 
 			double avg_o 	= mean(img_src(Range(k, k + block_size), Range(l, l + block_size)))[0];
-			double avg_r 	= mean(img_compressed(Range(k, k + block_size), Range(l, l + block_size)))[0];
+			double avg_c 	= mean(img_compressed(Range(k, k + block_size), Range(l, l + block_size)))[0];
 			double sigma_o 	= sigma(img_src, m, n, block_size);
-			double sigma_r 	= sigma(img_compressed, m, n, block_size);
-			double sigma_ro	= cov(img_src, img_compressed, m, n, block_size);
+			double sigma_c 	= sigma(img_compressed, m, n, block_size);
+			double sigma_co	= cov(img_src, img_compressed, m, n, block_size);
 
 			// SSIM: [(2*  μx   *  μy   + C1) * (2 * σxy      + C2)]/[(((μx)^2)        + ((μy)^2)      + C1) * (     ((σx)^2)     +     ((σy)^2)      + C2)]
-			ssim += ((2 * avg_o * avg_r + C1) * (2 * sigma_ro + C2)) / ((avg_o * avg_o + avg_r * avg_r + C1) * (sigma_o * sigma_o + sigma_r * sigma_r + C2));
+			ssim += ((2 * avg_o * avg_c + C1) * (2 * sigma_co + C2)) / ((avg_o * avg_o + avg_c * avg_c + C1) * (sigma_o * sigma_o + sigma_c * sigma_c + C2));
 			
 		}
 		// Progress %
@@ -157,13 +161,13 @@ int main(){
   string compressedImagePath("images/1.tif");
   bool done = tifToMat(originalImage,originalImagePath);
   if(!done){
-	cout << "Error converting original image tiff to matrix";
+	cout << "Error converting original image tiff to matrix"<<endl;
 	return -1;
   }
 
   done = tifToMat(compressedImage,compressedImagePath);
   if(!done){
-	cout << "Error converting compressed image tiff to matrix";
+	cout << "Error converting compressed image tiff to matrix"<<endl;
 	return -1;
   }
 
