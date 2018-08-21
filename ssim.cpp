@@ -65,9 +65,6 @@ bool tifToMat(Mat& image,string imageName){
 				// Free temp memory
 				_TIFFfree(raster); 
 
-				// Rotate the image 90 degrees 
-				image = image.t(); // Traspose
-				flip(image, image, 0);
 			
 		    } while (TIFFReadDirectory(tif)); // Get the next tif to go into the channels
 
@@ -79,18 +76,18 @@ bool tifToMat(Mat& image,string imageName){
 // Variance
 double variance(Mat & m, int i, int j, int block_size)
 {
-		double sd = 0;
-		
-		Mat m_tmp = m(Range(i, i + block_size), Range(j, j + block_size)); // Create temporary matrix (Range is used to generate the rows)
-		Mat m_squared(block_size, block_size, CV_64F); // Create the matrix to scan
+	double var = 0;
+	
+	Mat m_tmp = m(Range(i, i + block_size), Range(j, j + block_size)); // Create temporary matrix (Range is used to generate the rows)
+	Mat m_squared(block_size, block_size, CV_64F); // Create the matrix to scan
 
-		multiply(m_tmp, m_tmp, m_squared); 
+	multiply(m_tmp, m_tmp, m_squared); 
 
-		double avg = mean(m_tmp)[0]; 	// E(x) (mean calculate medium point)
-		double avg_2 = mean(m_squared)[0]; 	// E(x²) 
+	double avg = mean(m_tmp)[0]; 	// E(x) (mean calculate medium point)
+	double avg_2 = mean(m_squared)[0]; 	// E(x²) 
 
-		sd = sqrt(avg_2 - avg * avg);
-		return sd;
+	var = sqrt(avg_2 - avg * avg);
+	return var;
 }
 
 // Covariance
@@ -106,9 +103,9 @@ double covariance(Mat & m1, Mat & m2, int i, int j, int block_size)
 	double avg_c = mean(m1_tmp)[0]; // E(X)
 	double avg_o = mean(m2_tmp)[0]; // E(Y)
 
-	double sd_co = avg_co - avg_o * avg_c; // E(XY) - E(X)E(Y)
+	double cov = avg_co - avg_o * avg_c; // E(XY) - E(X)E(Y)
 
-	return sd_co;
+	return cov;
 }
 
 
