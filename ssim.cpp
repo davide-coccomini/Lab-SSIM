@@ -152,10 +152,28 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 }
 
 int main(){
-  Mat originalImage;
-  Mat compressedImage;
+  Mat originalImage, compressedImage;
+  string defaultSettings;
   string originalImagePath("images/0.tif");
   string compressedImagePath("images/1.tif");
+  
+  cout<<"+++ Welcome to SSIM calculator by Davide Coccomini +++"<<endl<<"You can use this program to calculate how much similar are two TIFF images with the same subject"<<endl;
+  cout<<"Do you want to use the default settings? Y/N"<<endl;
+  cin>>defaultSettings;
+  if(defaultSettings.compare("N") == 0){
+	string folderName, originalImageName,compressedImageName;
+	cout<<"Insert the folder name of the images"<<endl;
+	cin>>folderName;
+	cout<<"Insert the name of the original image (without format)"<<endl;
+	cin>>originalImageName;
+	cout<<"Insert the name of the compressed image (without format)"<<endl;
+	cin>>compressedImageName;
+	originalImagePath = folderName+"/"+originalImageName+".tif";
+	compressedImagePath = folderName+"/"+compressedImageName+".tif";
+	cout<<"Settings updated successfully"<<endl;	
+  }
+  cout<<"Starting computation ..."<<endl;
+
   bool done = tifToMat(originalImage,originalImagePath);
   if(!done){
 	cout << "Error converting original image tiff to matrix"<<endl;
