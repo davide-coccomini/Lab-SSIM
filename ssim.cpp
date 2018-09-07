@@ -157,7 +157,7 @@ int main(){
   string originalImagePath("images/0.tif");
   string compressedImagePath("images/1.tif");
   
-  cout<<"+++ Welcome to SSIM calculator by Davide Coccomini +++"<<endl<<"You can use this program to calculate how much similar are two TIFF images with the same subject"<<endl;
+  cout<<"+++ Welcome to SSIM calculator +++"<<endl<<"You can use this program to calculate how much similar are two TIFF images with the same subject"<<endl;
   cout<<"Do you want to use the default settings? Y/N"<<endl;
   cin>>defaultSettings;
   if(defaultSettings.compare("N") == 0){
