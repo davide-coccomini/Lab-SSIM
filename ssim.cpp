@@ -14,65 +14,6 @@ using namespace std;
 #define C1 (float) (0.01 * 255 * 0.01  * 255)
 #define C2 (float) (0.03 * 255 * 0.03 * 255)
 
-
-
-bool tifToMat(Mat& image,string imageName){
-		  // Read images and create the Mat
-		  TIFF* tif = TIFFOpen(imageName.c_str(), "r");
-		  
-		  if (tif) {
-		     do {
-				unsigned int width, height;
-				uint32* raster;
-
-				// Get the size of the tiff
-				TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
-				TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
-
-				uint npixels = width*height; // Get the total number of pixels
-
-				raster = (uint32*)_TIFFmalloc(npixels * sizeof(uint32)); // Allocate temp memory (bitmap)
-				if (raster == NULL) // Check the raster's memory was allocated
-				{
-					TIFFClose(tif);
-					cerr << "Raster allocate error" << endl;
-					return false;
-				}
-						
-				// Check the tif read to the raster correctly
-				if (!TIFFReadRGBAImage(tif, width, height, raster, 0))
-				{
-					TIFFClose(tif);
-					cerr << "Raster read error" << endl;
-					return false;
-				}
-
-				// Create a new matrix of width x height with 8 bits per channel and 4 channels (RGBA)
-				image = Mat(width, height, CV_8UC4); 
-						
-				// Itterate through all the pixels of the tif
-				for (uint x = 0; x < width; x++)
-					for (uint y = 0; y < height; y++)
-					{
-						uint32& TiffPixel = raster[y*width+x]; // Read the current pixel of the TIF
-						Vec4b& pixel = image.at<Vec4b>(Point(y, x)); // Read the current pixel of the matrix
-						pixel[0] = TIFFGetB(TiffPixel); // Set the pixel values as BGRA
-						pixel[1] = TIFFGetG(TiffPixel);
-						pixel[2] = TIFFGetR(TiffPixel);
-						pixel[3] = TIFFGetA(TiffPixel);
-					}
-				
-				// Free temp memory
-				_TIFFfree(raster); 
-
-			
-		    } while (TIFFReadDirectory(tif)); // Get the next tif to go into the channels
-
-		   TIFFClose(tif); // Close the tif file
-		  }else return false;
-  return true;
-}
-
 // Variance
 double variance(Mat & m, int i, int j, int block_size)
 {
@@ -174,24 +115,19 @@ int main(){
   }
   cout<<"Starting computation ..."<<endl;
 
-  bool done = tifToMat(originalImage,originalImagePath);
-  if(!done){
-	cout << "Error converting original image tiff to matrix"<<endl;
-	return -1;
-  }
 
-  done = tifToMat(compressedImage,compressedImagePath);
-  if(!done){
-	cout << "Error converting compressed image tiff to matrix"<<endl;
-	return -1;
-  }
 
-  originalImage.convertTo(originalImage, CV_64F);
-  compressedImage.convertTo(compressedImage, CV_64F);
+  originalImage = imread(originalImagePath, CV_LOAD_IMAGE_UNCHANGED);
+  compressedImage = imread(compressedImagePath, CV_LOAD_IMAGE_UNCHANGED);
+	
+  /*imshow("Original image", originalImage); // Show the original image
+  imshow("Compressed image", compressedImage); // Show the compressed image
+  waitKey(0); // Wait for key before displaying next*/
 
-  //imshow("Original image", originalImage); // Show the original image
-  //imshow("Compressed image", compresedImage); // Show the compressed image
-  //waitKey(0); // Wait for key before displaying next
+
+  originalImage.convertTo(originalImage, CV_64FC3);
+  compressedImage.convertTo(compressedImage, CV_64FC3);
+
 
   double SSIM = getSSIM(originalImage, compressedImage,1);
   return 0;
