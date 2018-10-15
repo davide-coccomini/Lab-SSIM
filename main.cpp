@@ -1,7 +1,7 @@
 // SSIM.cpp: definisce il punto di ingresso dell'applicazione console.
 //
 
-
+// ************** SSIM ORIGINALE **************
 
 #include "pch.h"
 #include <opencv2/core/core.hpp>
@@ -31,7 +31,7 @@ double variance(Mat & m, int i, int j, int block_size)
 	multiply(m_tmp, m_tmp, m_squared);
 
 	double avg = mean(m_tmp)[0]; 	// E(x) (mean calculate medium point)
-	double avg_2 = mean(m_squared)[0]; 	// E(xÂ²) 
+	double avg_2 = mean(m_squared)[0]; 	// E(x²) 
 
 	var = sqrt(avg_2 - avg * avg);
 	return var;
@@ -98,12 +98,24 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 	}
 	return ssim;
 }
+/*
+Mat convertTo8bit(Mat image[]) {
+	for (int i = 0; i < to_int(image[0].size()); i++) {
+
+	}
+	for (int i = 0; i < image[1].size(); i++) {
+
+	}
+	for (int i = 0; i < image[1].size(); i++) {
+
+	}
+}*/
 
 int main() {
 	Mat originalImage, compressedImage;
 	string defaultSettings;
-	string originalImagePath("images/0.tif");
-	string compressedImagePath("images/1.tif");
+	string originalImagePath("images/10.tif");
+	string compressedImagePath("images/13.tif");
 
 	cout << "+++ Welcome to SSIM calculator +++" << endl << "You can use this program to calculate how much similar are two TIFF images with the same subject" << endl;
 	cout << "Do you want to use the default settings? Y/N" << endl;
@@ -125,16 +137,32 @@ int main() {
 
 	originalImage = imread(originalImagePath, CV_LOAD_IMAGE_UNCHANGED);
 	compressedImage = imread(compressedImagePath, CV_LOAD_IMAGE_UNCHANGED);
+	Mat originalImageLab, compressedImageLab;
+	cvtColor(originalImage, originalImageLab, COLOR_RGB2Lab);
+	cvtColor(compressedImage, compressedImageLab, COLOR_RGB2Lab);
 
-/*	imshow("Original image", originalImage); // Show the original image
-	imshow("Compressed image", compressedImage); // Show the compressed image
-	waitKey(0); // Wait for key before displaying next
-	*/
+	Mat originalImageSplitted[3], compressedImageSplitted[3]; 
+	split(originalImageLab, originalImageSplitted);
+	split(compressedImageLab, compressedImageSplitted);
+	cout << originalImageSplitted[1] - 128 << endl;
+	//cout << originalImageSplitted[1] << endl;
+	//cout << originalImageSplitted[2] << endl;
+	
+
+	/*originalImageSplitted = convertTo8bit(originalImageSplitted);
+	compressedImageSplitted = convertTo8bit(compressedImageSplitted);*/
+
+		
+		/*imshow("Original image", originalImageSplitted[0]); // Show the original image
+		imshow("Compressed image", originalImageSplitted[1]); // Show the compressed image
+		waitKey(0); // Wait for key before displaying next*/
+
+	
 	originalImage.convertTo(originalImage, CV_64FC3);
 	compressedImage.convertTo(compressedImage, CV_64FC3);
 
 
-	double SSIM = getSSIM(originalImage, compressedImage, 1);
+	double SSIM = getSSIM(originalImage, compressedImage, 20);
 	system("pause");
 	return 0;
 }
