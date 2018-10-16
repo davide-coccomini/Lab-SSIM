@@ -11,7 +11,8 @@
 #include <iostream> 
 #include <math.h>
 #include <string>
-#include <stdlib.h>  
+#include <stdlib.h> 
+#include <math.h>  
 
 using namespace cv;
 using namespace std;
@@ -19,6 +20,7 @@ using namespace std;
 // Two variables to stabilize the division with weak denominator
 #define C1 (float) (0.01 * 255 * 0.01  * 255)
 #define C2 (float) (0.03 * 255 * 0.03 * 255)
+#define C3 (float) C2/2
 
 // Variance
 double variance(Mat & m, int i, int j, int block_size)
@@ -32,7 +34,6 @@ double variance(Mat & m, int i, int j, int block_size)
 
 	double avg = mean(m_tmp)[0]; 	// E(x) (mean calculate medium point)
 	double avg_2 = mean(m_squared)[0]; 	// E(x²) 
-
 	var = sqrt(avg_2 - avg * avg);
 	return var;
 }
@@ -54,18 +55,31 @@ double covariance(Mat & m1, Mat & m2, int i, int j, int block_size)
 
 	return cov;
 }
+// Luminance
+double luminance(double avg_o, double avg_c) {
+	return (2 * avg_o * avg_c + C1) / (pow(avg_o, 2) + pow(avg_c, 2)  + C1);
+}
 
+// Contrast
+double contrast(double sigma_o, double sigma_c) {
+	return ((2 * sigma_o*sigma_c) + C2) / ((pow(sigma_o, 2) + pow(sigma_c, 2) + C2));
+}
 
-double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_progress = true)
+// Structure
+double structure(double sigma_c, double sigma_o, double sigma_co) {
+	return ((sigma_co + C3) / (sigma_o*sigma_c + C3));
+}
+
+double getSSIM(Mat img_src[3], Mat img_compressed[3], int block_size, bool show_progress = true)
 {
 	double ssim = 0;
 
-	if (img_src.cols != img_compressed.cols || img_src.rows != img_compressed.rows) {
+	if (img_src[0].cols != img_compressed[0].cols || img_src[0].rows != img_compressed[0].rows) {
 		cout << "The images got different size" << endl;
 		return -1;
 	}
-	int nbBlockPerHeight = img_src.rows / block_size;
-	int nbBlockPerWidth = img_src.cols / block_size;
+	int nbBlockPerHeight = img_src[0].rows / block_size;
+	int nbBlockPerWidth = img_src[0].cols / block_size;
 
 	// Foreach block in the images
 	for (int k = 0; k < nbBlockPerHeight; k++)
@@ -75,14 +89,31 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 			int m = k * block_size;
 			int n = l * block_size;
 
-			double avg_o = mean(img_src(Range(k, k + block_size), Range(l, l + block_size)))[0];
-			double avg_c = mean(img_compressed(Range(k, k + block_size), Range(l, l + block_size)))[0];
-			double sigma_o = variance(img_src, m, n, block_size);
-			double sigma_c = variance(img_compressed, m, n, block_size);
-			double sigma_co = covariance(img_src, img_compressed, m, n, block_size);
+			// Avg values for a-channel
+			double avg_o = mean(img_src[1](Range(k, k + block_size), Range(l, l + block_size)))[0];
+			double avg_c = mean(img_compressed[1](Range(k, k + block_size), Range(l, l + block_size)))[0];
+			double luminance_a = luminance(avg_o, avg_c);
 
-			// SSIM: [(2*  ?x   *  ?y   + C1) * (2 * ?xy      + C2)]/[(((?x)^2)        + ((?y)^2)      + C1) * (     ((?x)^2)     +     ((?y)^2)      + C2)]
-			ssim += ((2 * avg_o * avg_c + C1) * (2 * sigma_co + C2)) / ((avg_o * avg_o + avg_c * avg_c + C1) * (sigma_o * sigma_o + sigma_c * sigma_c + C2));
+			// Avg values for b-channel
+			avg_o = mean(img_src[2](Range(k, k + block_size), Range(l, l + block_size)))[0];
+			avg_c = mean(img_compressed[2](Range(k, k + block_size), Range(l, l + block_size)))[0];
+			double luminance_b = luminance(avg_o, avg_c);
+
+			// Mean of luminance of a and b channels
+			double luminance_ab = (luminance_a+luminance_b)/2;
+
+			// Sigma values for L-channel
+			double sigma_o = variance(img_src[0], m, n, block_size);
+			double sigma_c = variance(img_compressed[0], m, n, block_size);
+			double sigma_co = covariance(img_src[0], img_compressed[0], m, n, block_size);
+
+			// Contrast and structure for the L channel
+			double contrast_L = contrast(sigma_o, sigma_c);
+			double structure_L = structure(sigma_o, sigma_c, sigma_co);
+
+			
+			ssim += (luminance_ab * contrast_L * structure_L);
+	
 
 		}
 		// Progress %
@@ -98,24 +129,43 @@ double getSSIM(Mat & img_src, Mat & img_compressed, int block_size, bool show_pr
 	}
 	return ssim;
 }
-/*
-Mat convertTo8bit(Mat image[]) {
-	for (int i = 0; i < to_int(image[0].size()); i++) {
 
-	}
-	for (int i = 0; i < image[1].size(); i++) {
+Mat* normalizeLabValues(Mat image[]) {
+	int rows = image[0].rows;
+	int cols = image[0].cols;
 
-	}
-	for (int i = 0; i < image[1].size(); i++) {
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			// L
+			Scalar intensity = image[0].at<uchar>(i, j);
+			Scalar normalized_intensity = intensity.val[0] * 100 / 256;
+			image[0].at<uchar>(i,j) = normalized_intensity.val[0];
+			
+			// a
+			intensity = image[1].at<uchar>(i, j);
+			normalized_intensity = intensity.val[0] - 126;
+			image[1].at<uchar>(i, j) = normalized_intensity.val[0];
 
+			// b
+			intensity = image[2].at<uchar>(i, j);
+			normalized_intensity = intensity.val[0] - 126;
+			image[2].at<uchar>(i, j) = normalized_intensity.val[0];
+		}
 	}
-}*/
+
+
+	image[0].convertTo(image[0], CV_64FC3);
+	image[1].convertTo(image[1], CV_64FC3);
+	image[2].convertTo(image[2], CV_64FC3);
+
+	return image;
+}
 
 int main() {
 	Mat originalImage, compressedImage;
 	string defaultSettings;
 	string originalImagePath("images/10.tif");
-	string compressedImagePath("images/13.tif");
+	string compressedImagePath("images/12.tif");
 
 	cout << "+++ Welcome to SSIM calculator +++" << endl << "You can use this program to calculate how much similar are two TIFF images with the same subject" << endl;
 	cout << "Do you want to use the default settings? Y/N" << endl;
@@ -144,25 +194,15 @@ int main() {
 	Mat originalImageSplitted[3], compressedImageSplitted[3]; 
 	split(originalImageLab, originalImageSplitted);
 	split(compressedImageLab, compressedImageSplitted);
-	cout << originalImageSplitted[1] - 128 << endl;
-	//cout << originalImageSplitted[1] << endl;
-	//cout << originalImageSplitted[2] << endl;
 	
 
-	/*originalImageSplitted = convertTo8bit(originalImageSplitted);
-	compressedImageSplitted = convertTo8bit(compressedImageSplitted);*/
-
-		
-		/*imshow("Original image", originalImageSplitted[0]); // Show the original image
-		imshow("Compressed image", originalImageSplitted[1]); // Show the compressed image
-		waitKey(0); // Wait for key before displaying next*/
-
-	
 	originalImage.convertTo(originalImage, CV_64FC3);
 	compressedImage.convertTo(compressedImage, CV_64FC3);
 
+	Mat* originalImageNormalized = normalizeLabValues(originalImageSplitted);
+	Mat* compressedImageNormalized = normalizeLabValues(compressedImageSplitted);
 
-	double SSIM = getSSIM(originalImage, compressedImage, 20);
+	double SSIM = getSSIM(originalImageNormalized, compressedImageNormalized, 20);
 	system("pause");
 	return 0;
 }
