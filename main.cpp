@@ -1,8 +1,3 @@
-// SSIM.cpp: definisce il punto di ingresso dell'applicazione console.
-//
-
-// ************** SSIM ORIGINALE **************
-
 #include "pch.h"
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -33,7 +28,7 @@ double variance(Mat & m, int i, int j, int block_size)
 	multiply(m_tmp, m_tmp, m_squared);
 
 	double avg = mean(m_tmp)[0]; 	// E(x) (mean calculate medium point)
-	double avg_2 = mean(m_squared)[0]; 	// E(x²) 
+	double avg_2 = mean(m_squared)[0]; 	// E(xï¿½) 
 	var = sqrt(avg_2 - avg * avg);
 	return var;
 }
