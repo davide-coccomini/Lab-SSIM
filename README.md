@@ -10,11 +10,11 @@ In this sperimental Lab Based SSIM, the luminance is obtained by calculating the
 # HOW TO RUN (Windows)
 - Install Visual Studio 2017 (https://visualstudio.microsoft.com/it/downloads/)
 - Download Opencv Win Pack (https://opencv.org/releases.html) and extract it into the C folder 
-- Create a Visual Studio project and edit the project properties (all configuration x64) as follow:
+- Create a Visual Studio project and edit the project properties (all configurations x64) as follow:
     -) C/C++ -> General -> Include Directories = C:\opencv\build\include
     -) Linker -> General -> Library Directories = C:\opencv\build\x64\vc14\lib
-    -) Linker -> Input -> opencv_world343.lib;%(AdditionalDependencies)
-- Create an "images" folder containing the two images you want to compare into your project folder
+    -) Linker -> Input -> Edit -> New -> opencv_world343.lib
+- Create an "images" folder, into your project directory, containing the two images you want to compare
 - Add the C++ code into the project and run it in Release x64 mode.
 
 
